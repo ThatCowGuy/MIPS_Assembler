@@ -11,24 +11,26 @@
 #include "Functions.h"
 
 // init the Constants and Labels Map as empty
-std::map <std::string, int> MIPS::Constants = {};
-std::map <std::string, int> MIPS::Labels = {};
+std::map <std::string, unsigned int> MIPS::Constants = {};
+std::map <std::string, unsigned int> MIPS::Labels = {};
+unsigned int MIPS::RAM_Start = 0;
+unsigned int MIPS::Current_PC = 0;
 
-
-void MIPS::add_constant(std::string name, int value)
+void MIPS::add_constant(std::string name, unsigned int value)
 {
-    int test = Functions::try_key_on_dict(name, MIPS::Constants);
+    unsigned int test = Functions::try_key_on_dict(name, MIPS::Constants);
     if (test != Functions::ERROR_CODE)
     {
         Functions::print_error("Encountered duplicate Constant !", name);
         return;
     }
-    MIPS::Constants.insert( std::pair <std::string, int> (name, value));
+    MIPS::Constants.insert( std::pair <std::string, unsigned int> (name, value));
+    Functions::print_in_color(std::format("(Constant) \"{0}\" = {1:#010X} added.\n", name, value), Functions::COL_CYN);
 }
-int MIPS::parse_constant(std::string input)
+unsigned int MIPS::parse_constant(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::Constants);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::Constants);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("Encountered unknown Constant !", input);
@@ -37,12 +39,93 @@ int MIPS::parse_constant(std::string input)
     return result;
 }
 
+void MIPS::add_label(std::string name, unsigned int value)
+{
+    unsigned int test = Functions::try_key_on_dict(name, MIPS::Labels);
+    if (test != Functions::ERROR_CODE)
+    {
+        Functions::print_error("Encountered duplicate Label !", name);
+        return;
+    }
+    MIPS::Labels.insert(std::pair <std::string, unsigned int>(name, value));
+    Functions::print_in_color(std::format("(Label) \"{0}\" = {1:#010X} added.\n", name, value), Functions::COL_GRN);
+}
+unsigned int MIPS::parse_label_absolute(std::string input)
+{
+    // the Label will never be negative => no 2's Complement
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::Labels);
+    if (result == Functions::ERROR_CODE)
+    {
+        Functions::print_error("Encountered unknown Label !", input);
+        return Functions::ERROR_CODE;
+    }
+    return (result + MIPS::RAM_Start);
+}
+unsigned int MIPS::parse_label_relative(std::string input)
+{
+    // the Label will never be negative => no 2's Complement
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::Labels);
+    if (result == Functions::ERROR_CODE)
+    {
+        Functions::print_error("Encountered unknown Label !", input);
+        return Functions::ERROR_CODE;
+    }
+    return (result - (MIPS::Current_PC + 4));
+}
+unsigned int MIPS::reshape_target(unsigned int target, unsigned int max_bits)
+{
+    // check target alignment
+    if (target % 0x4 != 0)
+        return Functions::ERROR_CODE;
+
+    // check target distance
+    if (std::abs((int)target) >= std::pow(2, (max_bits + 2)))
+        return Functions::ERROR_CODE;
+
+    // shift bits because lowest 2 dont matter
+    target = (target >> 2);
+    // & with the maximum possible target, to cut off
+    // access bits in sign extended, negative targets
+    target = (target & (unsigned int)(std::pow(2, max_bits) - 1));
+
+    return target;
+}
+
+unsigned int MIPS::parse_numeral(std::string input)
+{
+    // Constant Input if input starts with *@'
+    if (input.find("@") == 0)
+        return MIPS::parse_constant(input.substr(1));
+    // Label Input if input starts with *:'
+    if (input.find(":") == 0)
+        return MIPS::parse_label_absolute(input.substr(1));
+
+    // Literal Hex Input if X at position 2
+    if (input.find("X") == 1)
+        return std::stoul(input.substr(2), nullptr, 16);
+    // Literal Binary Input if B at position 2
+    if (input.find("B") == 1)
+        return std::stoul(input.substr(2), nullptr, 2);
+
+    // else, Literal Decimal Input
+    return std::stoul(input, nullptr, 10);
+}
+unsigned int MIPS::parse_numeral_upper(std::string input)
+{
+    unsigned int result = MIPS::parse_numeral(input);
+    return (result >> 16);
+}
+unsigned int MIPS::parse_numeral_lower(std::string input)
+{
+    unsigned int result = MIPS::parse_numeral(input);
+    return (result & 0xFFFF);
+}
 
 
-int MIPS::parse_register(std::string input)
+unsigned int MIPS::parse_register(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::Registers);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::Registers);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("Register can't be parsed !", input);
@@ -50,10 +133,10 @@ int MIPS::parse_register(std::string input)
     }
     return result;
 }
-int MIPS::parse_opcode(std::string input)
+unsigned int MIPS::parse_opcode(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::OpCodes);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::OpCodes);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("OpCode can't be parsed !", input);
@@ -61,10 +144,10 @@ int MIPS::parse_opcode(std::string input)
     }
     return result;
 }
-int MIPS::parse_functioncode(std::string input)
+unsigned int MIPS::parse_functioncode(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::FunctionCodes);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::FunctionCodes);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("FunctionCode can't be parsed !", input);
@@ -73,10 +156,10 @@ int MIPS::parse_functioncode(std::string input)
     return result;
 }
 
-int MIPS::parse_fp_register(std::string input)
+unsigned int MIPS::parse_fp_register(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::FP_Registers);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::FP_Registers);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("FP_Register can't be parsed !", input);
@@ -84,10 +167,10 @@ int MIPS::parse_fp_register(std::string input)
     }
     return result;
 }
-int MIPS::parse_fp_opcode(std::string input)
+unsigned int MIPS::parse_fp_opcode(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::FP_OpCodes);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::FP_OpCodes);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("FP_OpCode can't be parsed !", input);
@@ -95,10 +178,10 @@ int MIPS::parse_fp_opcode(std::string input)
     }
     return result;
 }
-int MIPS::parse_fp_functioncode(std::string input)
+unsigned int MIPS::parse_fp_functioncode(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::FP_FunctionCodes);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::FP_FunctionCodes);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("FP_FunctionCode can't be parsed !", input);
@@ -106,10 +189,10 @@ int MIPS::parse_fp_functioncode(std::string input)
     }
     return result;
 }
-int MIPS::parse_fmt(std::string input)
+unsigned int MIPS::parse_fmt(std::string input)
 {
     // this will never be negative => no 2's Complement
-    int result = Functions::try_key_on_dict(input, MIPS::FMT_Specifiers);
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::FMT_Specifiers);
     if (result == Functions::ERROR_CODE)
     {
         Functions::print_error("FMT_Specifier can't be parsed !", input);
@@ -118,12 +201,27 @@ int MIPS::parse_fmt(std::string input)
     return result;
 }
 
-
-
-
-std::map<std::string, int> MIPS::Registers =
+unsigned int MIPS::parse_fp_transfer_specifier(std::string input)
 {
-    { "R0", 0b00000 }, { "00", 0b00000 }, { "0", 0b00000 },
+    // trim away the "C1" from the FP_TRANSFER instruction
+    input = Functions::remove_char(input, 'C');
+    input = Functions::remove_char(input, '1');
+
+    // this will never be negative => no 2's Complement
+    unsigned int result = Functions::try_key_on_dict(input, MIPS::FP_TRANSER_Specifiers);
+    if (result == Functions::ERROR_CODE)
+    {
+        Functions::print_error("FP_TRANSER_Specifiers can't be parsed !", input);
+        return Functions::ERROR_CODE;
+    }
+    return result;
+}
+
+
+
+std::map<std::string, unsigned int> MIPS::Registers =
+{
+    { "R0", 0b00000 }, { "00", 0b00000 }, { "0", 0b00000 }, { "ZERO", 0b00000 },
     { "AT", 0b00001 }, { "01", 0b00001 }, { "1", 0b00001 },
     { "V0", 0b00010 }, { "02", 0b00010 }, { "2", 0b00010 },
     { "V1", 0b00011 }, { "03", 0b00011 }, { "3", 0b00011 },
@@ -157,7 +255,7 @@ std::map<std::string, int> MIPS::Registers =
     { "RA", 0b11111 }, { "31", 0b11111 }, { "R", 0b11111 },
 };
 
-std::map<std::string, int> MIPS::OpCodes =
+std::map<std::string, unsigned int> MIPS::OpCodes =
 {
     // 000 000
     { "NOP", 0b000000 }, { "SLL", 0b000000 }, { "SRL", 0b000000 }, { "SRA", 0b000000 }, { "SLLV", 0b000000 },
@@ -224,7 +322,7 @@ std::map<std::string, int> MIPS::OpCodes =
     { "SWR",    0b101110 },
     { "P",      0b101111 },
     { "LL",     0b110000 },
-    { "LWC1",   0b110001 }, // unsure if this is technically correct
+    { "LWC1",   0b110001 }, // unsure if this is technically correct        caje 110001|01 - 010001|01
     { "LLD",    0b110100 },
     { "LD",     0b110111 },
     { "SC",     0b111000 },
@@ -233,7 +331,7 @@ std::map<std::string, int> MIPS::OpCodes =
     { "SD",     0b111111 },
 };
 
-std::map<std::string, int> MIPS::FunctionCodes =
+std::map<std::string, unsigned int> MIPS::FunctionCodes =
 {
     { "SLL",    0b000000 },
     { "SRL",    0b000010 },
@@ -261,7 +359,7 @@ std::map<std::string, int> MIPS::FunctionCodes =
     { "SLTU",   0b101011 },
 };
 
-std::map<std::string, int> MIPS::FP_Registers =
+std::map<std::string, unsigned int> MIPS::FP_Registers =
 {
     { "F00", 0b00000 }, { "F0", 0b00000 },
     { "F01", 0b00001 }, { "F1", 0b00001 },
@@ -297,7 +395,7 @@ std::map<std::string, int> MIPS::FP_Registers =
     { "F31", 0b11111 },
 };
 
-std::map<std::string, int> MIPS::FP_OpCodes =
+std::map<std::string, unsigned int> MIPS::FP_OpCodes =
 {
     { "MFC1",       0b00000 }, // MFC1 d, fs - 0100 01oo oood dddd ssss s000 0000 0000
     { "DMFC1",      0b00001 }, // double
@@ -306,7 +404,7 @@ std::map<std::string, int> MIPS::FP_OpCodes =
     { "DMTC1",      0b00101 }, // double
 };
 
-std::map<std::string, int> MIPS::FP_FunctionCodes =
+std::map<std::string, unsigned int> MIPS::FP_FunctionCodes =
 {
     { "ADD",      0b000000 }, // ADD.FMT D, s, S - 0100 01mm mmmS SSSS ssss sDDD DDff ffff - m = Format, NOTE: s and S are swapped
     { "SUB",      0b000001 }, // .
@@ -327,30 +425,42 @@ std::map<std::string, int> MIPS::FP_FunctionCodes =
     { "CVT.W",    0b100100 }, // .
 };
 
-std::map<std::string, int> MIPS::FMT_Specifiers = 
+std::map<std::string, unsigned int> MIPS::FMT_Specifiers = 
 {
-    { "S", 0b00000 },
-    { "D", 0b00001 },
-    { "W", 0b00010 },
+    // Note: These are the FMT encoding, NOT the FMT-3 ones...
+    { "S", 0b10000 },
+    { "D", 0b10001 },
+
+    { "W", 0b10100 },
+    { "L", 0b10101 },
 };
 
-std::map<std::string, int> MIPS::Data_Specifiers =
+std::map<std::string, unsigned int> MIPS::FP_TRANSER_Specifiers =
+{
+    { "MF",  0b00000 },
+    { "DMF", 0b00001 },
+
+    { "MT",  0b00100 },
+    { "DMT", 0b00101 },
+};
+
+std::map<std::string, unsigned int> MIPS::Data_Specifiers =
 {
     { ".WORD", 0x4 },
-    { ".HALF",    0x2 },
-    { ".BYTE",    0x1 },
+    { ".HALF", 0x2 }, { ".HALFWORD",  0x2 },
+    { ".BYTE", 0x1 },
 };
-std::map<std::string, int> MIPS::Injection_Start_Specifiers =
+std::map<std::string, unsigned int> MIPS::Injection_Start_Specifiers =
 {
-    { ".ORG", 0x4 },
+    { ".ORG",       0x4 },
     { ".ROMORG",    0x4 },
     { ".ROM_ORG",   0x4 },
     { ".FILEORG",   0x4 },
     { ".FILE_ORG",  0x4 },
 };
-std::map<std::string, int> MIPS::RAM_Start_Specifiers =
+std::map<std::string, unsigned int> MIPS::RAM_Start_Specifiers =
 {
-    { ".RAMORG", 0x4 },
+    { ".RAMORG",    0x4 },
     { ".RAM_ORG",   0x4 },
     { ".RAMSTART",  0x4 },
     { ".RAM_START", 0x4 },
@@ -362,7 +472,7 @@ std::list<std::string> MIPS::HILO_MOVE =
 {
     // INSTR d
     // 0000 0000 0000 0000 dddd d000 00ff ffff
-    "MFHI", "MTHI", "MFLO", "MTLO",
+    "MFLO", "MTLO", "MFHI", "MTHI", 
 };
 std::list<std::string> MIPS::SPECIAL_DSS =
 {
@@ -370,6 +480,7 @@ std::list<std::string> MIPS::SPECIAL_DSS =
     // 0000 00ss sssS SSSS dddd d000 00ff ffff
     "MULT", "MULTU", "DIV", "DIVU", "ADD", "ADDU",
     "SUB", "SUBU", "AND", "OR", "XOR", "NOR",
+    "SLT",
 };
 std::list<std::string> MIPS::SPECIAL_DSI =
 {
@@ -382,7 +493,7 @@ std::list<std::string> MIPS::SHIFT =
 {
     // INSTR d, s, imm
     // 0000 0000 000s ssss dddd diii iiff ffff
-    "SLL", "SRL", "SRA", "SLLV", "SRLV", "SRAV",
+    "SLL", "SRL", "SRA", "SLLV", "SRLV", "SRAV",        // < there is no SLA
 };
 std::list<std::string> MIPS::JUMP =
 {
@@ -400,9 +511,9 @@ std::list<std::string> MIPS::LOADSTORE =
 {
     // INSTR r, imm(a)
     // oooo ooaa aaar rrrr iiii iiii iiii iiii
-    "LB", "LH", "LWL", "LW", "LBU", "LWR",
-    "LWU", "SB", "SH", "SWL", "SW", "SBU",
-    "SHU", "SRR",
+    "LB", "LH", "LW", "LBU", "LHU", "LWU", 
+    "SB", "SH", "SW", "SBU", "SHU",                      // < there is no SWU
+    "LWL", "LWR", "SWL", "SWR",
 };
 std::list<std::string> MIPS::FP_LOADSTORE =
 {
@@ -412,8 +523,8 @@ std::list<std::string> MIPS::FP_LOADSTORE =
 };
 std::list<std::string> MIPS::FP_TRANSFER =
 {
-    // INSTR r, F
-    // 0100 01oo ooor rrrr FFFF F000 0000 0000
+    // FP_TRANSFER r, F
+    // 0100 01tt tttr rrrr FFFF F000 0000 0000
     "MFC1", "DMFC1", "MTC1", "DMTC1",
 };
 std::list<std::string> MIPS::FP_DSS =
@@ -428,4 +539,21 @@ std::list<std::string> MIPS::FP_DS =
     // 0100 01mm mmm0 0000 ssss sddd ddff ffff
     "SQRT", "ABS", "MOV", "NEG", "ROUND.W", "TRUNC.W",
     "CEIL.W", "FLOOR.W", "CVT.S", "CVT.W",
+};
+
+std::list<std::string> MIPS::SUPER_SPECIAL_DSS =
+{
+    // the Instructions MULT, DIV, MULTI and DIVU are special YET AGAIN...
+    // User could input "DIV d, s, S" which is PSEUDO-Instruction for
+    //    (DIV s, S) + (MFLO d)
+    // or User could input "DIV s, S" (implying they know to use MFLO after)
+    // this can be reshaped into a SPECIAL_DSS Instruction regardless:
+    //    "DIV s, S" == "DIV R0, s, S"
+    "MULT", "MULTU", "DIV", "DIVU",
+};
+std::list<std::string> MIPS::PSEUDO_BRANCH_SS =
+{
+    // PSEUDOs that translate into an SLT+BEQ/BNE combi
+    // INSTR s, S, imm - (Immediate >> 2)
+    "BLT", "BGT", "BLE", "BGE",
 };

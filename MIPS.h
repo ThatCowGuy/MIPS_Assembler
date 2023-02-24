@@ -7,41 +7,58 @@ class MIPS
 {
     public:
 
-        // Parsed Constants
-        static std::map<std::string, int> Constants;
-        static void add_constant(std::string name, int value);
-        static int parse_constant(std::string input);
-        // Parsed Labels
-        static std::map<std::string, int> Labels;
+        // some offset counters
+        static unsigned int RAM_Start;
+        static unsigned int Current_PC;
 
-        // Integer Registers
-        static std::map<std::string, int> Registers;
-        // Integer Instructions
-        static std::map<std::string, int> OpCodes;
-        static std::map<std::string, int> FunctionCodes;
+        // some constants
+        static const unsigned int COP1_HEAD = 0b010001;
+
+        // Parsing Constants
+        static std::map<std::string, unsigned int> Constants;
+        static void add_constant(std::string name, unsigned int value);
+        static unsigned int parse_constant(std::string input);
+        // Parsing Labels
+        static std::map<std::string, unsigned int> Labels;
+        static void add_label(std::string name, unsigned int value);
+        static unsigned int parse_label_absolute(std::string input);
+        static unsigned int parse_label_relative(std::string input);
+        static unsigned int reshape_target(unsigned int target, unsigned int max_bits);
+        // Parsing Numerals
+        static unsigned int parse_numeral(std::string input);
+        static unsigned int parse_numeral_upper(std::string input);
+        static unsigned int parse_numeral_lower(std::string input);
+
+        // unsigned integer Registers
+        static std::map<std::string, unsigned int> Registers;
+        // unsigned integer Instructions
+        static std::map<std::string, unsigned int> OpCodes;
+        static std::map<std::string, unsigned int> FunctionCodes;
 
         // Float Registers
-        static std::map<std::string, int> FP_Registers;
+        static std::map<std::string, unsigned int> FP_Registers;
         // Float Instructions
-        static std::map<std::string, int> FP_OpCodes;
-        static std::map<std::string, int> FP_FunctionCodes;
+        static std::map<std::string, unsigned int> FP_OpCodes;
+        static std::map<std::string, unsigned int> FP_FunctionCodes;
         // Format Specifiers
-        static std::map<std::string, int> FMT_Specifiers;
+        static std::map<std::string, unsigned int> FMT_Specifiers;
+        static std::map<std::string, unsigned int> FP_TRANSER_Specifiers;
 
         // Other Specifiers
-        static std::map<std::string, int> Data_Specifiers;
-        static std::map<std::string, int> Injection_Start_Specifiers;
-        static std::map<std::string, int> RAM_Start_Specifiers;
+        static std::map<std::string, unsigned int> Data_Specifiers;
+        static std::map<std::string, unsigned int> Injection_Start_Specifiers;
+        static std::map<std::string, unsigned int> RAM_Start_Specifiers;
 
         // Parsers
-        static int parse_register(std::string);
-        static int parse_opcode(std::string);
-        static int parse_functioncode(std::string);
+        static unsigned int parse_register(std::string);
+        static unsigned int parse_opcode(std::string);
+        static unsigned int parse_functioncode(std::string);
         // FP Parsers
-        static int parse_fp_register(std::string);
-        static int parse_fp_opcode(std::string);
-        static int parse_fp_functioncode(std::string);
-        static int parse_fmt(std::string);
+        static unsigned int parse_fp_register(std::string);
+        static unsigned int parse_fp_opcode(std::string);
+        static unsigned int parse_fp_functioncode(std::string);
+        static unsigned int parse_fmt(std::string);
+        static unsigned int parse_fp_transfer_specifier(std::string);
 
         // Encoding Families
         //========================================================
@@ -50,7 +67,7 @@ class MIPS
         //  s/S   = Source               fs/fS = FP-Source
         //  r     = Register             F     = FP-Register
         //  a     = Address              m     = FMT-Specifier
-        //  imm   = Immediate
+        //  imm   = Immediate            t     = Transfer Type
         //========================================================
         static std::list<std::string> HILO_MOVE;    // INSTR   d              // 0000 0000 0000 0000 dddd d000 00ff ffff
         static std::list<std::string> SPECIAL_DSS;  // INSTR   d, s, S        // 0000 00ss sssS SSSS dddd d000 00ff ffff
@@ -61,9 +78,14 @@ class MIPS
         static std::list<std::string> LOADSTORE;    // INSTR   r, imm(a)      // oooo ooaa aaar rrrr iiii iiii iiii iiii
         // FP-Encoding Families
         static std::list<std::string> FP_LOADSTORE; // INSTR   F, imm(a)      // oooo ooaa aaaF FFFF iiii iiii iiii iiii
-        static std::list<std::string> FP_TRANSFER;  // INSTR   r, F           // 0100 01oo ooor rrrr FFFF F000 0000 0000
+        static std::list<std::string> FP_TRANSFER;  // INSTR   r, F           // 0100 01tt tttr rrrr FFFF F000 0000 0000
         static std::list<std::string> FP_DSS;       // INSTR.m fd, fs, fS     // 0100 01mm mmmS SSSS ssss sddd ddff ffff
         static std::list<std::string> FP_DS;        // INSTR.m fd, fs         // 0100 01mm mmm0 0000 ssss sddd ddff ffff
+
+        // and the SUPER_SPECIAL_DSS for MULT, MULTU, DIV, DIVU...
+        static std::list<std::string> SUPER_SPECIAL_DSS;
+        // AND the pseudo branches that translate into 2 instructions
+        static std::list<std::string> PSEUDO_BRANCH_SS;
 
         // NOP
         // 0000 0000 0000 0000 0000 0000 0000 0000
@@ -71,19 +93,4 @@ class MIPS
         // 0000 00ss sss0 0000 0000 0000 0000 1000
         // LUI d, i
         // 0011 1100 000d dddd iiii iiii iiii iiii
-
-        // (PSEUDO) B i
-        // --- BEQ R0, R0, i
-        //     0001 0000 0000 0000 iiii iiii iiii iiii
-        // (PSEUDO) MOVE d, s
-        // --- ADD d, R0, s
-        //     0000 0000 000S SSSS dddd d000 0010 0000
-        // (PSEUDO) LI d, i
-        // --- LUI d, i
-        // --- ADDIU d, d, i
-        //     0011 1100 000d dddd iiii iiii iiii iiii
-        //     0010 01DD DDDd dddd iiii iiii iiii iiii
-        // (PSEUDO) LA d, i
-        //     virtually the same as LI with the way I
-        //     handle consts + labels. Replace LA => LI
 };

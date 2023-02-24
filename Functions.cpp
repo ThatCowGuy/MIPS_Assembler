@@ -8,12 +8,49 @@
 #include <Windows.h>
 #include <vector>
 #include <list>
+#include <fstream>
 
-int Functions::try_key_on_dict(std::string key, std::map<std::string, int> dict)
+#include "MIPS.h"
+
+unsigned int Functions::twos_complement(unsigned int value)
+{
+    // abusing casts
+    return (unsigned int) ((-1) * (int) value);
+}
+
+bool Functions::list_contains(std::list<std::string> container, std::string key)
+{
+    // C++ be like...
+    return (std::find(std::begin(container), std::end(container), key) != std::end(container));
+}
+
+void Functions::write_to_file(std::fstream& file, unsigned int content, unsigned int bytecount)
+{
+    // convert the unsigned int into an array of bytes == chars
+    char bytes[4];
+    bytes[0] = (content >> 24) & 0xFF;
+    bytes[1] = (content >> 16) & 0xFF;
+    bytes[2] = (content >>  8) & 0xFF;
+    bytes[3] = (content >>  0) & 0xFF;
+    // and write them into the file, starting with an offset
+    file.write(&bytes[4 - bytecount], bytecount);
+}
+void Functions::write_to_file(std::fstream& file, std::string content)
+{
+    // write the content into the file
+    file.write(content.c_str(), (content.size() + 1));
+}
+void Functions::write_to_txt_file(std::fstream& file, std::string content)
+{
+    // write the content into the file (no null termination)
+    file.write(content.c_str(), content.size());
+}
+
+unsigned int Functions::try_key_on_dict(std::string key, std::map<std::string, unsigned int> dict)
 {
     // try finding the key within the dict
-    std::map<std::string, int>::iterator index = dict.find(key);
-    // if the iterator doesn't point to the end => success
+    std::map<std::string, unsigned int>::iterator index = dict.find(key);
+    // if the iterator doesn't pounsigned int to the end => success
     if (index != dict.end())
         return index->second;
     // else, return failure
@@ -59,17 +96,28 @@ std::string Functions::trim_whitespace(std::string input)
     size_t length = (last_non_whitespace - first_non_whitespace);
     return input.substr(first_non_whitespace, (length + 1));
 }
+std::string Functions::replace_char(std::string input, char unwanted, char replacement)
+{
+    for (char& c : input)
+    {
+        if (c == unwanted)
+            c = replacement;
+    }
+    return input;
+}
+std::string Functions::remove_char(std::string input, char unwanted)
+{
+    // this is just unreadable...
+    input.erase(std::remove(input.begin(), input.end(), unwanted), input.end());
+    return input;
+}
 
 std::string Functions::convert_to_upper(std::string input)
 {
-    // make a copy of the input (C++ has actual call by ref)
-    std::string copy;
-    copy.resize(input.size());
-    input.copy(&copy[0], input.size());
-    // convert the copy to upper, and return that
-    for (char& c : copy)
+    // convert the input to upper, and return that
+    for (char& c : input)
         c = std::toupper(c);
-    return copy;
+    return input;
 }
 std::vector<std::string> Functions::split_string_at(std::string input, char delim)
 {
@@ -92,23 +140,23 @@ std::vector<std::string> Functions::split_string_at(std::string input, char deli
 
 // defining non-constant static members
 HANDLE Functions::console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-int Functions::error_count = 0;
+unsigned int Functions::error_count = 0;
 
 // and defining some print shortcuts
 void Functions::print(std::string msg)
 {
     std::cout << msg + "\n";
 }
-void Functions::print_in_color(std::string msg, int color)
+void Functions::print_in_color(std::string msg, unsigned int color)
 {
     SetConsoleTextAttribute(console_handle, color);
-    std::cout << msg + "\n";
+    std::cout << msg;
     SetConsoleTextAttribute(console_handle, COL_WHI);
 }
 void Functions::print_error(std::string msg, std::string input)
 {
     Functions::error_count++;
     print_in_color(std::format("[+ ERROR #{:02} +]", Functions::error_count), COL_WHI_ON_RED);
-    print_in_color(" >> " + msg, COL_RED);
-    print_in_color(std::format("Input: \"{0}\"", input), COL_RED);
+    print_in_color("\n >> " + msg + "\n", COL_RED);
+    print_in_color(std::format("Input: \"{0}\"\n", input), COL_RED);
 }
