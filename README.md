@@ -1,4 +1,29 @@
 
+# Documentation of how to use my Assembler
+
+At the very least, you need to have the `MIPS_Assembler.exe` File in a Folder together with a File called `testing.asm` and `blank.bin`.
+
+These Files will be used by Default if you don't provide any Arguments (ie. using the EXE by simply double-clicking it).
+
+The Assembler will read, parse and translate every line of ASM that you have written (in plaintext-form) in `testing.asm`, and write the binary result
+into `blank.bin` (Note that it will write them to the offset 0x00, unless you specify an offset (see `INJECTION POINTS (and PC)`). The Assembler will
+also write a Log-File called `testing_Log.txt` in which you can get more details about the processing (most importantly, if something goes wrong, you
+can check here for potential error messages).
+
+It really shouldn't matter how you format your ASM (indentation, Register Naming decisions, whitespacing, capitalization are all filtered out).
+
+Below this First Documentation-Block, you will find a list of all the supported MIPS ASM Instructions, including Pseudo-Instructions and Extras like
+automatic Function-Pointer / Label calculations, `.RAMSTART`, `.ROMSTART` and a couple of `.DATA` Directives.
+
+If you want to supply your own `source.asm` File, and your own `target.bin` File, you need to call the Executable like this:
+```
+./MIPS_Assembler source.asm target.bin
+```
+from a Console like CMD, PowerShell or WSL.
+<br />
+<br />
+<br />
+
 # Documentation of what my Assembler sees
 
 <!--============================================================================-->
